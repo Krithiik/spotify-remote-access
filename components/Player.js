@@ -18,6 +18,7 @@ import { useRecoilState, useRecoilValue } from "recoil";
 import { currentTrackIdState, isPlayingState } from "../atoms/songAtom";
 import useSongInfo from "../hooks/useSongInfo";
 import useSpotify from "../hooks/useSpotify";
+import millisToMinuteAndSeconds from "../lib/time";
 
 function Player() {
   const spotifyApi = useSpotify();
@@ -26,12 +27,13 @@ function Player() {
     useRecoilState(currentTrackIdState);
   const [isPlaying, setIsPlaying] = useRecoilState(isPlayingState);
   const [volume, setVolume] = useState(50);
-
+  const [playtime, setPlaytime] = useState(0);
+  const [atTime, setAtTime] = useState(0);
   const songInfo = useSongInfo();
 
-  const fetchCurrentSong = () => {
+  const fetchCurrentSong = async () => {
     if (!songInfo) {
-      spotifyApi.getMyCurrentPlayingTrack().then((data) => {
+      await spotifyApi.getMyCurrentPlayingTrack().then((data) => {
         setCurrentTrackId(data.body?.item?.id);
         spotifyApi.getMyCurrentPlaybackState().then((data) => {
           setIsPlaying(data.body?.is_playing);
@@ -42,7 +44,6 @@ function Player() {
 
   const handlePlayPause = () => {
     spotifyApi.getMyCurrentPlaybackState().then((data) => {
-      console.log(data);
       if (data.body.is_playing) {
         spotifyApi.pause();
         setIsPlaying(false);
@@ -68,20 +69,31 @@ function Player() {
     }
   }, [volume]);
 
+  useEffect(() => {
+    debounceAdjustplaytime(playtime);
+  }, [playtime]);
+
   const debouncedAdjustVolume = useCallback(
     debounce((volume) => {
       spotifyApi.setVolume(volume).catch((err) => {});
-    }, 500),
+    }, 300),
+    []
+  );
+
+  const debounceAdjustplaytime = useCallback(
+    debounce((playtime) => {
+      spotifyApi.seek(playtime).catch((err) => {});
+    }, 300),
     []
   );
 
   return (
     <div
       className="h-24 bg-gradient-to-b from-black to-gray-900 
-    text-white grid grid-cols-3 text-xs md:text-base px-2 md:px-8"
+    text-white grid grid-cols-8  text-xs md:text-base px-2 md:px-8"
     >
       {/* Left */}
-      <div className="flex items-center space-x-4">
+      <div className="flex col-span-2 items-center space-x-4">
         <img
           className="hidden md:inline h-10 w-10"
           src={songInfo?.album.images?.[0]?.url}
@@ -92,20 +104,36 @@ function Player() {
           <p>{songInfo?.artists?.[0]?.name}</p>
         </div>
       </div>
-      <div className="flex items-center justify-evenly">
+      <div className="col-span-4">
         {/* Center */}
-        <SwitchHorizontalIcon className="button" />
-        <RewindIcon className="button" />
-        {isPlaying ? (
-          <PauseIcon onClick={handlePlayPause} className="button w-10 h-10" />
-        ) : (
-          <PlayIcon onClick={handlePlayPause} className="button w-10 h-10" />
-        )}
-        {/* Fastforward is broken on spotifyAPI */}
-        <FastForwardIcon className="button" />
-        <ReplyIcon className="button" />
+        <div className="flex items-center justify-center">
+          <SwitchHorizontalIcon className="button" />
+          <RewindIcon className="button" />
+          {isPlaying ? (
+            <PauseIcon onClick={handlePlayPause} className="button w-10 h-10" />
+          ) : (
+            <PlayIcon onClick={handlePlayPause} className="button w-10 h-10" />
+          )}
+          {/* Fastforward is broken on spotifyAPI */}
+          <FastForwardIcon className="button" />
+          <ReplyIcon className="button" />
+        </div>
+        <div className="flex items-center justify-between pt-4 space-x-4">
+          <p className="text-white p-2">0:00</p>
+          <input
+            className="w-screen"
+            value={playtime}
+            type="range"
+            min={0}
+            max={songInfo?.duration_ms}
+            onChange={(e) => setPlaytime(Number(e.target.value))}
+          />
+          <p className="text-white p-2">
+            {millisToMinuteAndSeconds(songInfo?.duration_ms)}
+          </p>
+        </div>
       </div>
-      <div className="flex items-center space-x-3 md:space-x-4 justify-end pr-5">
+      <div className="flex col-span-2 items-center space-x-3 md:space-x-4 justify-end pr-5">
         {/* Right */}
         <VolumeDownIcon
           onClick={() => volume > 0 && setVolume(volume - 10)}
