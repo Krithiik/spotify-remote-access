@@ -18,7 +18,9 @@ import { useRecoilState, useRecoilValue } from "recoil";
 import { currentTrackIdState, isPlayingState } from "../atoms/songAtom";
 import useSongInfo from "../hooks/useSongInfo";
 import useSpotify from "../hooks/useSpotify";
+import { useTimer } from "../hooks/useTimer";
 import millisToMinuteAndSeconds from "../lib/time";
+import { secondsToMinutesAndSeconds } from "../lib/time";
 
 function Player() {
   const spotifyApi = useSpotify();
@@ -28,8 +30,8 @@ function Player() {
   const [isPlaying, setIsPlaying] = useRecoilState(isPlayingState);
   const [volume, setVolume] = useState(50);
   const [playtime, setPlaytime] = useState(0);
-  const [atTime, setAtTime] = useState(0);
   const songInfo = useSongInfo();
+  const { start, pause, seconds, setSeconds, reset } = useTimer();
 
   const fetchCurrentSong = async () => {
     if (!songInfo) {
@@ -47,9 +49,11 @@ function Player() {
       if (data?.body?.is_playing) {
         spotifyApi.pause();
         setIsPlaying(false);
+        pause();
       } else {
         spotifyApi.play();
         setIsPlaying(true);
+        start();
       }
     });
   };
@@ -62,16 +66,17 @@ function Player() {
   }, [currentTrackId, spotifyApi, session]);
 
   useEffect(() => {
+    reset();
+    setPlaytime(0);
+  }, [currentTrackId]);
+
+  useEffect(() => {
     if (volume > 0 && volume < 100) {
       if (spotifyApi.getAccessToken) {
         debouncedAdjustVolume(volume);
       }
     }
   }, [volume]);
-
-  useEffect(() => {
-    debounceAdjustplaytime(playtime);
-  }, [playtime]);
 
   const debouncedAdjustVolume = useCallback(
     debounce((volume) => {
@@ -80,8 +85,13 @@ function Player() {
     []
   );
 
+  useEffect(() => {
+    debounceAdjustplaytime(playtime);
+  }, [playtime]);
+
   const debounceAdjustplaytime = useCallback(
     debounce((playtime) => {
+      setSeconds(Math.round(Number(playtime / 1000)));
       spotifyApi.seek(playtime).catch((err) => {});
     }, 300),
     []
@@ -106,7 +116,7 @@ function Player() {
       </div>
       <div className="col-span-4">
         {/* Center */}
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center space-x-4 md:space-x-9">
           <SwitchHorizontalIcon className="button" />
           <RewindIcon className="button" />
           {isPlaying ? (
@@ -118,11 +128,14 @@ function Player() {
           <FastForwardIcon className="button" />
           <ReplyIcon className="button" />
         </div>
+        {/* Timeline */}
         <div className="flex items-center justify-between pt-4 space-x-4">
-          <p className="text-white p-2">0:00</p>
+          <p className="text-white p-2">
+            {secondsToMinutesAndSeconds(seconds)}
+          </p>
           <input
             className="w-screen"
-            value={playtime}
+            value={seconds * 1000}
             type="range"
             min={0}
             max={songInfo?.duration_ms}
@@ -133,7 +146,7 @@ function Player() {
           </p>
         </div>
       </div>
-      <div className="flex col-span-2 items-center space-x-3 md:space-x-4 justify-end pr-5">
+      <div className="flex col-span-2 items-center space-x-1  justify-end pr-5">
         {/* Right */}
         <VolumeDownIcon
           onClick={() => volume > 0 && setVolume(volume - 10)}
