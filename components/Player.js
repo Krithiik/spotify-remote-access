@@ -68,6 +68,9 @@ function Player() {
   useEffect(() => {
     reset();
     setPlaytime(0);
+    if (isPlaying) {
+      start();
+    }
   }, [currentTrackId]);
 
   useEffect(() => {
@@ -100,7 +103,7 @@ function Player() {
   return (
     <div
       className="h-24 bg-gradient-to-b from-black to-gray-900 
-    text-white grid grid-cols-8  text-xs md:text-base px-2 md:px-8"
+    text-white grid grid-cols-8  text-xs md:text-base px-2 md:px-8 "
     >
       {/* Left */}
       <div className="flex col-span-2 items-center space-x-4">
